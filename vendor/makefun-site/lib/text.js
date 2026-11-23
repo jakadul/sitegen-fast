@@ -6,6 +6,7 @@ const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&
 /** `text` with & < > " and ' escaped. */
 const ESCAPE_CACHE = new Map();
 const ESCAPE_CACHE_MAX = 4096;
+const NEEDS_ESCAPE = /[&<>"']/;
 
 export function escapeHtml(text) {
   // One scan, no regex and no per-match callback: the reference's
@@ -20,6 +21,14 @@ export function escapeHtml(text) {
   if (text.length < 96) {
     const hit = ESCAPE_CACHE.get(text);
     if (hit !== undefined) return hit;
+    // Nothing to escape is the common case: a title, a tag, a nav label.
+    // V8's regex test is a builtin scan and beats the char loop below, and it
+    // lets the unchanged string go straight back without an allocation.
+    if (!NEEDS_ESCAPE.test(text)) {
+      if (ESCAPE_CACHE.size >= ESCAPE_CACHE_MAX) ESCAPE_CACHE.clear();
+      ESCAPE_CACHE.set(text, text);
+      return text;
+    }
   }
   let out = null;
   let from = 0;
@@ -47,6 +56,7 @@ export function escapeHtml(text) {
 
 /** The most characters a slug keeps before a collision suffix. */
 export const SLUG_MAX = 64;
+const SLUG_CACHE = new Map();
 
 /**
  * The slug of `text`: NFKD, combining marks dropped, A-Z lowered, every run of characters other than a-z and 0-9 one
@@ -54,6 +64,12 @@ export const SLUG_MAX = 64;
  * left.
  */
 export function slugify(text) {
+  // Same slugs, computed once each. tags() slugs every tag three times (to
+  // dedupe, to key and to build the ref) and pages slug their own titles
+  // again for the tag lookups; normalize('NFKD') plus the mark strip is the
+  // expensive half and its result never changes for the same input.
+  const cached = SLUG_CACHE.get(text);
+  if (cached !== undefined) return cached;
   const plain = text.normalize('NFKD').replace(/\p{M}/gu, '');
   let out = '';
   let gap = false;
@@ -70,7 +86,9 @@ export function slugify(text) {
     out += keep;
   }
   out = out.slice(0, SLUG_MAX).replace(/-+$/, '');
-  return out === '' ? 'untitled' : out;
+  const slug = out === '' ? 'untitled' : out;
+  if (SLUG_CACHE.size < 8192) SLUG_CACHE.set(text, slug);
+  return slug;
 }
 
 /** `slug` made unique against `taken` (and added to it): the first of slug, slug-2, slug-3 ... not taken. */

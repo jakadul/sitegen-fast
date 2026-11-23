@@ -166,10 +166,11 @@ export function renderNodes(nodes, scope, ctx, depth) {
       case 'for': {
         const xs = lookup(scope, n.path);
         if (!Array.isArray(xs)) break;
-        xs.forEach((x, k) => {
-          const vars = { [n.name]: x, loop: { index: k + 1, first: k === 0, last: k === xs.length - 1, length: xs.length } };
+        const len = xs.length;
+        for (let k = 0; k < len; k++) {
+          const vars = { [n.name]: xs[k], loop: { index: k + 1, first: k === 0, last: k === len - 1, length: len } };
           out += renderNodes(n.body, { vars, parent: scope }, ctx, depth);
-        });
+        }
         break;
       }
       case 'include': {
