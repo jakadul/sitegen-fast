@@ -29,6 +29,10 @@ export function escapeHtml(text) {
       ESCAPE_CACHE.set(text, text);
       return text;
     }
+  } else if (!NEEDS_ESCAPE.test(text)) {
+    // A long body with nothing to escape is just as common (code blocks,
+    // paragraphs of prose). Same test, no cache: it would only hold garbage.
+    return text;
   }
   let out = null;
   let from = 0;

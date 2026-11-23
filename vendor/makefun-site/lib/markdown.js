@@ -142,7 +142,16 @@ function findSingleStar(s, from) {
 }
 
 /** `s` rendered inline; `env.link(target)` is a link's href. */
+const NO_MARKUP = /^[^\\`*[\]&<>"']*$/;
+const NO_ESCAPE = /^[^&<>"']*$/;
+
 export function inline(s, env) {
+  // Most bodies in a generated site are plain prose: no emphasis, no code, no
+  // link, no character to escape. One regex test proves that, and the answer
+  // is the input unchanged — the whole loop below is skipped. That covers the
+  // paragraph, heading and list-item text of a normal page, which is most of
+  // the inline work in a build.
+  if (NO_MARKUP.test(s)) return s;
   let out = '';
   let i = 0;
   // The reference escaped one character at a time (escapeHtml(c) in the loop
@@ -257,7 +266,13 @@ export function renderMarkdown(src, env) {
       }
       case 'code': {
         const cls = t.lang === '' ? '' : ` class="language-${escapeHtml(t.lang)}"`;
-        blocks.push(`<pre><code${cls}>${t.lines.map((l) => `${escapeHtml(l)}\n`).join('')}</code></pre>`);
+        // Code blocks are long and mostly plain: joining first and testing once
+        // skips escapeHtml on lines that need nothing, which is most of them.
+        const joined = t.lines.join('\n');
+        const body2 = NO_ESCAPE.test(joined)
+          ? (t.lines.length === 0 ? '' : `${joined}\n`)
+          : t.lines.map((l) => `${escapeHtml(l)}\n`).join('');
+        blocks.push(`<pre><code${cls}>${body2}</code></pre>`);
         break;
       }
       case 'hr':
